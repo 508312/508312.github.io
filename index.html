@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Three.js GLB Loader</title>
+    <title>The cool corner</title>
     <style>
         /* Basic styling to make the canvas fill the page */
         body {
@@ -16,12 +16,28 @@
         canvas {
             display: block;
         }
+		
+		#info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
+            display:block;
+            padding: 10px;
+            background-color: rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
 
     <!-- We'll draw our scene on this canvas -->
     <canvas id="webgl-canvas"></canvas>
+	
+	<div id="info">
+        Loading your awesome experience. <br/>
+        <div id="info-percent"> </div>
+    </div>
 
     <!-- Import maps are a modern way to manage JavaScript modules in the browser -->
     <!-- This tells the browser where to find the 'three' and 'three/addons/' modules -->
@@ -350,15 +366,21 @@
                     });
 
 
+					var info = document.getElementById("info");
+					info.style.display = "none";
+
                     renderer.setAnimationLoop( animate );
                 },
                 // onProgress callback: executed while loading is progressing
                 function (xhr) {
                     const percentLoaded = (xhr.loaded / xhr.total * 100).toFixed(2);
-                    console.log(percentLoaded + '% loaded');
+					var infoPercent = document.getElementById("info-percent");
+                    infoPercent.innerHTML = percentLoaded + '% loaded';
                 },
                 // onError callback: executed when loading errors occur
                 function (error) {
+					var info = document.getElementById("info");
+                    info.innerHTML = "An error happened while loading the model";
                     console.error('An error happened while loading the model:', error);
                 }
             );
