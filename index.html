@@ -55,6 +55,8 @@
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
         
         let pointer = new THREE.Vector2();
         let scene, renderer, controls, raycaster, canvas;
@@ -73,6 +75,10 @@
         let targetCameraY = defaultCamPos.y;
         let clickableElements = {};
         let hoverableElements = {};
+        let clickTriggers = {};
+        let hoverTriggers = {};
+
+        let activeHoverTriggers = new Set();
 
         let moveForward = false;
         let moveBackward = false;
@@ -86,7 +92,13 @@
         let explodeAnimations = [];
         let pointerLantern;
 
+        let monologueBox;
+        let monologueBoxAnimation;
+        let monologueText;
+        let font;
+
         let eyes;
+        let aliases = [];
 
         let headClicks = 0;
 
@@ -133,6 +145,7 @@
             renderer.physicallyCorrectLights = true;
 
 
+
             // Ambient light: Illuminates all objects in the scene equally.
             const ambientLight = new THREE.AmbientLight(0xffffff, ambientLightIntensity);
             scene.add(ambientLight);
@@ -144,6 +157,12 @@
             pointerLantern.castShadow = false;
             pointerLantern.shadow.bias = -0.01;
             scene.add(pointerLantern);
+
+
+            const fontLoader = new FontLoader();
+            fontLoader.load( "helvetiker" + '_' + "regular" + '.typeface.json', function ( response ) {
+                font = response;
+            } );
 
             // Instantiate a loader
             const loader = new GLTFLoader();
@@ -177,8 +196,14 @@
 
                     mixer = new THREE.AnimationMixer( gltf.scene );
                     var spinnyAction = mixer.clipAction(THREE.AnimationClip.findByName(gltf.animations, 'SpinnyTextCompiledAction'));
-                    spinnyAction = spinnyAction.reset();
+                    spinnyAction.reset();
                     spinnyAction.play();
+
+                    monologueBoxAnimation = mixer.clipAction(THREE.AnimationClip.findByName(gltf.animations, 'Monologue_BoxAction'));
+                    monologueBoxAnimation.setLoop(THREE.LoopOnce);
+                    monologueBoxAnimation.clampWhenFinished = true;
+                    monologueBoxAnimation.reset();
+                    monologueBoxAnimation.play();
 
                     darkModeEnableAnimation = mixer.clipAction(THREE.AnimationClip.findByName(gltf.animations, 'Button_Darkmode_Enable'));
                     darkModeEnableAnimation.setLoop(THREE.LoopOnce);
@@ -202,6 +227,19 @@
                         tmpExplode.clampWhenFinished = true;
                         explodeAnimations.push(tmpExplode);
                     }
+
+                    for (let i = 1; i < 20; i++) {
+                        var tmpAlias = scene.getObjectByName(`My_Alias${i}`);
+                        if (!tmpAlias) {
+                            break;
+                        }
+                        tmpAlias.visible = false;
+                        aliases.push(tmpAlias);
+                    }
+
+                    scene.getObjectByName( "Button_CamToggle" ).visible = false;
+                    monologueBox = scene.getObjectByName( "Monologue_Box" );
+                    monologueBox.visible = false;
 
                     const objectsToAnchor = [];
                     const objectsToReposition = [];
@@ -246,7 +284,19 @@
                         else if (object.name === "Artem_Head_Mesh") {
                             clickableElements[object.name] = () => {
                                 headClicks += 1;
-                                if (headClicks === 10) {
+                                if (headClicks == 1) {
+                                    monologueBoxSay("yup!\nthis is me!\nyour humble helper.");
+                                }
+
+                                if (headClicks == 5) {
+                                    monologueBoxSay("i would prefer\nif you stopped\nclicking on my head.");
+                                }
+
+                                if (headClicks == 8) {
+                                    monologueBoxSay("ouch!");
+                                }
+
+                                if (headClicks === 12) {
                                     let head = scene.getObjectByName( "BakedHead" );
                                     head.position.set(0, 0, 0);
                                     object.add(head);
@@ -263,6 +313,7 @@
                         else if (object.name === 'Button_CamToggle') {
                             clickableElements[object.name] = () => {
                                 if (activeCamera === camera) {
+                                    monologueBoxSay("woooaaah!\nthis text is 3d too??");
                                     activeCamera = perspectiveCamera;
                                 } else {
                                     activeCamera = camera;
@@ -322,25 +373,29 @@
 
 
                         // Hoverable objects
-                        if (object.name === 'Aliases_text') {
-                            hoverableElements[object.name] = () => {
-                                const known_aliases = [
-                                    ``,
-                                                    
-                                ];
-                                object
+                        if (object.name === 'AliasHoverTrigger') {
+                            object.visible = false; 
+                            aliases[aliases.length * Math.random() | 0].visible = true;
+                            hoverTriggers[object.name] = () => {
+                                let activeAlias = null;
+                                aliases.forEach((alias) => { 
+                                    if (alias.visible) {
+                                        alias.visible = false;
+                                        activeAlias = alias;
+                                    } 
+                                });
+                                // Random choise because JS doesnt have a pretty method for it
+                                let newAlias;
+                                do {
+                                    newAlias = aliases[aliases.length * Math.random() | 0];
+                                } while (newAlias === activeAlias)
+                                newAlias.visible = true;
+
                             }
                         }
 
                     });
 
-                    eyes = scene.getObjectByName( "eyes" );
-                    // const geometry = new THREE.BoxGeometry( 1, 1, 1 ); 
-                    // const material = new THREE.MeshBasicMaterial( {color: 0x00ff00} ); 
-                    // const cube = new THREE.Mesh( geometry, material ); 
-                    // eyes.add( cube );
-
-                    scene.getObjectByName( "Button_CamToggle" ).visible = false;
 
                     objectsToReposition.forEach((object) => {
                         const parent = object.parent;
@@ -368,7 +423,8 @@
 
 					var info = document.getElementById("info");
 					info.style.display = "none";
-
+                    
+                    monologueBoxSay("Hi, welcome!\nI will be your assistant\nfor today's session.");
                     renderer.setAnimationLoop( animate );
                 },
                 // onProgress callback: executed while loading is progressing
@@ -491,6 +547,10 @@
                     }
                 }
 
+                if (monologueBox.visible) {
+                    monologueBoxHide();
+                }
+
                 if (top_object && top_object.name in clickableElements) {
                     clickableElements[top_object.name]();
                 }
@@ -548,11 +608,91 @@
             renderer.render(scene, activeCamera);
         };
 
-        function onPointerMove( event ) {
 
+        function monologueBoxHide() {
+            monologueBox.visible = false;
+        }
+
+        // Inefficient, there is no need for real 3d text, cuz of it being stuck to the camera. 
+        function monologueBoxSay(text) {
+            console.log("Saying monologue box text");
+            if (monologueText) {
+                monologueBox.remove(monologueText);
+            }
+
+            var mat = new THREE.MeshPhongMaterial( { color: 0x22bbaa } );
+
+            var textGeo = new TextGeometry( text, {
+                font: font,
+
+                size: 0.15,
+                height: 0.15,
+                curveSegments: 4,
+
+                // bevelThickness: 0.01,
+                // bevelSize: 0.01,
+                // bevelEnabled: true
+
+            } );
+
+            textGeo.computeBoundingBox();
+
+            const centerOffset = - 0.5 * ( textGeo.boundingBox.max.x - textGeo.boundingBox.min.x );
+
+            monologueText = new THREE.Mesh( textGeo, mat );
+
+            textGeo.dispose();
+            mat.dispose();
+
+            monologueText.position.x = -2.5;
+            monologueText.position.y = 0.1;
+            monologueText.position.z = -0.85;
+
+            monologueText.rotation.x = -Math.PI / 2;
+            monologueText.rotation.y = 0;
+
+            monologueBox.add( monologueText );
+
+            monologueBox.visible = true;
+            monologueBoxAnimation.reset();
+            monologueBoxAnimation.play();
+
+            artemTalkAnimation.reset();
+            artemTalkAnimation.play();
+        }
+
+        function onPointerMove( event ) {
             pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
             pointer.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
 
+            raycaster.setFromCamera( pointer, activeCamera );
+            const intersects = raycaster.intersectObjects( scene.children, true );
+            let top_object = null;
+            let triggers = new Set();
+            for (const intersect of intersects) {
+                if (top_object === null && intersect !== undefined && intersect.object.visible) {
+                    top_object = intersect.object;
+                }
+                if (intersect !== undefined && intersect.object.name in hoverTriggers) {
+                    triggers.add(intersect.object);
+                }
+            }
+
+            if (top_object && top_object.name in hoverableElements) {
+                hoverableElements[top_object.name]();
+            }
+
+            activeHoverTriggers.forEach(element => {
+                if (triggers.has(element)) {
+                    triggers.delete(element);
+                } else {
+                    activeHoverTriggers.delete(element);
+                }
+            });
+            triggers.forEach(element => {
+                hoverTriggers[element.name]();
+                activeHoverTriggers.add(element);
+            });
         }
 
 
