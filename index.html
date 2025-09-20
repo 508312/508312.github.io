@@ -615,6 +615,10 @@
 
         // Inefficient, there is no need for real 3d text, cuz of it being stuck to the camera. 
         function monologueBoxSay(text) {
+            if (!scene.getObjectByName("Artem_Head_Mesh").visible) {
+                return;
+            }
+
             console.log("Saying monologue box text");
             if (monologueText) {
                 monologueBox.remove(monologueText);
